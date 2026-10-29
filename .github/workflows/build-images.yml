@@ -1,0 +1,80 @@
+# Builds the api and db-migrator images from this fork and publishes them to
+# GHCR. Upstream publishes its release images from a release-please workflow
+# outside this repository; this is the fork's substitute for it, built with the
+# same recipe (packages/api/docker-bake.hcl: both images from one commit, so
+# the api's migration guard and the migrator's migrations agree).
+#
+# Images:
+#   ghcr.io/<owner>/e2b-api:{main,sha-<short>}
+#   ghcr.io/<owner>/e2b-db-migrator:{main,sha-<short>}
+name: Build images
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - packages/api/**
+      - packages/db/**
+      - packages/shared/**
+      - packages/auth/**
+      - packages/clickhouse/**
+      - .github/workflows/build-images.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The same two values packages/api/Makefile derives for `make build`.
+      - name: Build arguments
+        id: args
+        run: |
+          echo "commit_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "expected_migration=$(ls packages/db/migrations | sed 's/_.*//' | sort | tail -n 1)" >> "$GITHUB_OUTPUT"
+          echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      # Both Dockerfiles cross-compile in a $BUILDPLATFORM builder stage; only
+      # the final alpine stage runs under emulation.
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: api
+        uses: docker/build-push-action@v6
+        with:
+          context: packages
+          file: packages/api/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            COMMIT_SHA=${{ steps.args.outputs.commit_sha }}
+            EXPECTED_MIGRATION_TIMESTAMP=${{ steps.args.outputs.expected_migration }}
+          tags: |
+            ghcr.io/${{ steps.args.outputs.owner }}/e2b-api:main
+            ghcr.io/${{ steps.args.outputs.owner }}/e2b-api:sha-${{ steps.args.outputs.commit_sha }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+
+      - name: db-migrator
+        uses: docker/build-push-action@v6
+        with:
+          context: packages
+          file: packages/db/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ steps.args.outputs.owner }}/e2b-db-migrator:main
+            ghcr.io/${{ steps.args.outputs.owner }}/e2b-db-migrator:sha-${{ steps.args.outputs.commit_sha }}
+          cache-from: type=gha,scope=db-migrator
+          cache-to: type=gha,scope=db-migrator,mode=max
