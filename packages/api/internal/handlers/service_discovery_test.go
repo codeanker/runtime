@@ -247,6 +247,50 @@ func TestNewServiceDiscovery_ExplicitProviderSurvivesALocalEnvironment(t *testin
 
 // The clusters registry owns orchestrator nodes only when the resolved provider
 // is the static local one — there both planes are the same single instance.
+// A pod with host networking reports the same address twice, so the fixture
+// pulls them apart: the node's address is where the reference deploy listens,
+// the pod's where an orchestrator with its own network namespace does.
+func TestNewServiceDiscovery_KubernetesDialsTheNodeUnlessPreferPodIP(t *testing.T) {
+	t.Parallel()
+
+	const (
+		nodeIP = "10.0.0.5"
+		podIP  = "10.42.1.3"
+	)
+
+	tests := map[string]struct {
+		preferPodIP bool
+		want        string
+	}{
+		"the default dials the node, where a host-network pod listens": {
+			preferPodIP: false, want: nodeIP,
+		},
+		"K8S_PREFER_POD_IP dials the pod network": {
+			preferPodIP: true, want: podIP,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			orchestrator := discoveredPod("orchestrator-1", "orchestrator", nodeIP)
+			orchestrator.Status.PodIP = podIP
+			builder := discoveredPod("template-manager-1", "template-manager", nodeIP)
+			builder.Status.PodIP = podIP
+
+			config := discoveryConfig(cfg.ServiceDiscoveryProviderKubernetes, "")
+			config.K8sPreferPodIP = tt.preferPodIP
+
+			sd, err := newServiceDiscovery(t.Context(), config, fixedKubeClient(orchestrator, builder), cfg.ServiceDiscoveryProviderKubernetes)
+			require.NoError(t, err)
+
+			assert.Equal(t, []string{tt.want}, planeIPs(t, sd.nodes))
+			assert.Equal(t, []string{tt.want}, planeIPs(t, sd.templateBuilders))
+		})
+	}
+}
+
 // Deriving it from the environment instead builds a Nomad or Kubernetes node
 // plane that neither the periodic loop nor on-demand discovery ever consults,
 // so an orchestrator that is not also a template builder never registers.
