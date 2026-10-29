@@ -18,9 +18,11 @@ var tracer = otel.Tracer("github.com/e2b-dev/infra/packages/shared/pkg/servicedi
 // k8sDiscovery lists pods of the orchestrator DaemonSet via the K8s API
 // server.
 //
-// Those pods run with host networking, so each pod's status.HostIP equals
-// status.PodIP and is the address the orchestrator gRPC server listens on. A
-// pod is returned while it is Running and has an IP; the Ready condition is
+// In the reference deploy those pods run with host networking, so each pod's
+// status.HostIP equals status.PodIP and is the address the orchestrator gRPC
+// server listens on; a consumer whose orchestrators keep their own network
+// namespace asks for the pod IP instead (NewPodsOnPort with preferHostIP
+// false). A pod is returned while it is Running and has an IP; the Ready condition is
 // deliberately not consulted, because it is false for instances that still
 // have to be reachable — self-reported unhealthy, not yet probed, on a
 // NotReady node. Liveness is in-band and routing gates on that instead.
