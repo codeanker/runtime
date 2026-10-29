@@ -158,7 +158,9 @@ The control-plane entry point (Gin, OpenAPI-generated from `spec/openapi.yml`, p
   running-sandbox (Redis) and paused-snapshot (Postgres) state so they survive pause/resume and
   orchestrator re-sync; a fork starts a new workload and does not inherit them.
 - **Placement**: keeps a live map of orchestrator nodes (discovered via Nomad, Kubernetes, or a
-  static list). Chooses a node per sandbox with a **best-of-K** algorithm
+  static list; Kubernetes-discovered pods are dialed on their node's address, or on their pod
+  IP with `K8S_PREFER_POD_IP=true` for orchestrators that keep their own network namespace).
+  Chooses a node per sandbox with a **best-of-K** algorithm
   (`internal/orchestrator/placement/`): sample K ready nodes, score by the
   higher of CPU load and hugepage-pool load, pick the lowest; retry on
   exhausted nodes. A node that refuses a create (`ResourceExhausted`) stays

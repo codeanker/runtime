@@ -111,6 +111,14 @@ type Config struct {
 	K8sNamespace                       string `env:"K8S_NAMESPACE"                           envDefault:"default"`
 	K8sOrchestratorPodLabelSelector    string `env:"K8S_ORCHESTRATOR_POD_LABEL_SELECTOR"     envDefault:"app.kubernetes.io/name=orchestrator"`
 	K8sTemplateManagerPodLabelSelector string `env:"K8S_TEMPLATE_MANAGER_POD_LABEL_SELECTOR" envDefault:"app.kubernetes.io/name=template-manager"`
+	// K8sPreferPodIP dials the discovered orchestrator and template-manager
+	// pods on their pod IP instead of their node's. Off, the API dials
+	// status.hostIP, which is where a pod with host networking listens (the
+	// reference deploy). On, for a cluster whose orchestrator pods keep their
+	// own network namespace and are reachable only through the pod network,
+	// such as edge nodes behind an overlay that carries pod CIDRs but not node
+	// addresses.
+	K8sPreferPodIP bool `env:"K8S_PREFER_POD_IP"`
 
 	PostgresConnectionString string `env:"POSTGRES_CONNECTION_STRING,required,notEmpty"`
 	DBMaxOpenConnections     int32  `env:"DB_MAX_OPEN_CONNECTIONS"                      envDefault:"40"`

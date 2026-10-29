@@ -41,6 +41,7 @@ import (
 	"github.com/e2b-dev/infra/packages/db/pkg/pool"
 	"github.com/e2b-dev/infra/packages/shared/pkg/apierrors"
 	sharedclusters "github.com/e2b-dev/infra/packages/shared/pkg/clusters/discovery"
+	"github.com/e2b-dev/infra/packages/shared/pkg/consts"
 	"github.com/e2b-dev/infra/packages/shared/pkg/env"
 	"github.com/e2b-dev/infra/packages/shared/pkg/featureflags"
 	managementv1 "github.com/e2b-dev/infra/packages/shared/pkg/grpc/contracts/secretsstore/management"
@@ -131,16 +132,23 @@ func newKubernetesServiceDiscovery(ctx context.Context, config cfg.Config, newKu
 		return serviceDiscovery{}, fmt.Errorf("kubernetes client: %w", err)
 	}
 
+	// Both planes dial the well-known orchestrator port. Which address they
+	// dial it on follows K8sPreferPodIP: the node's by default, the pod's when
+	// the orchestrator pods do not share their node's network namespace.
 	return serviceDiscovery{
-		nodes: kube.NewPods(
+		nodes: kube.NewPodsOnPort(
 			client,
 			config.K8sNamespace,
 			config.K8sOrchestratorPodLabelSelector,
+			consts.OrchestratorAPIPort,
+			!config.K8sPreferPodIP,
 		),
-		templateBuilders: kube.NewPods(
+		templateBuilders: kube.NewPodsOnPort(
 			client,
 			config.K8sNamespace,
 			config.K8sTemplateManagerPodLabelSelector,
+			consts.OrchestratorAPIPort,
+			!config.K8sPreferPodIP,
 		),
 	}, nil
 }
