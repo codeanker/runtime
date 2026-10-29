@@ -4,14 +4,16 @@
 # same recipe (packages/api/docker-bake.hcl: both images from one commit, so
 # the api's migration guard and the migrator's migrations agree).
 #
-# Images:
-#   ghcr.io/<owner>/e2b-api:{main,sha-<short>}
-#   ghcr.io/<owner>/e2b-db-migrator:{main,sha-<short>}
+# Images, tagged with the branch and the short commit:
+#   ghcr.io/<owner>/e2b-api:{<branch>,sha-<short>}
+#   ghcr.io/<owner>/e2b-db-migrator:{<branch>,sha-<short>}
 name: Build images
 
 on:
   push:
-    branches: [main]
+    # main follows upstream; vaas is the pinned release plus our patches, the
+    # branch the k3s stack in infra-aws-vaas runs.
+    branches: [main, vaas]
     paths:
       - packages/api/**
       - packages/db/**
@@ -61,7 +63,7 @@ jobs:
             COMMIT_SHA=${{ steps.args.outputs.commit_sha }}
             EXPECTED_MIGRATION_TIMESTAMP=${{ steps.args.outputs.expected_migration }}
           tags: |
-            ghcr.io/${{ steps.args.outputs.owner }}/e2b-api:main
+            ghcr.io/${{ steps.args.outputs.owner }}/e2b-api:${{ github.ref_name }}
             ghcr.io/${{ steps.args.outputs.owner }}/e2b-api:sha-${{ steps.args.outputs.commit_sha }}
           cache-from: type=gha,scope=api
           cache-to: type=gha,scope=api,mode=max
@@ -74,7 +76,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/${{ steps.args.outputs.owner }}/e2b-db-migrator:main
+            ghcr.io/${{ steps.args.outputs.owner }}/e2b-db-migrator:${{ github.ref_name }}
             ghcr.io/${{ steps.args.outputs.owner }}/e2b-db-migrator:sha-${{ steps.args.outputs.commit_sha }}
           cache-from: type=gha,scope=db-migrator
           cache-to: type=gha,scope=db-migrator,mode=max
